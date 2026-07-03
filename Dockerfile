@@ -31,8 +31,76 @@ RUN apt-get update && \
         curl \
         wget \
         ca-certificates \
-        build-essential
+        build-essential \
+	python3 \
+        python3-pip \
+	python3-venv && \
+    python3 -m venv /opt/venv && \
+    chown -R xuemanjiu:xuemanjiu /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 USER xuemanjiu
+WORKDIR /home/xuemanjiu
 
+FROM common_pkg_provider AS verilator_provider
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y \
+        help2man \
+        perl \
+        autoconf \
+        flex \
+        bison \
+        ccache \
+        libfl2 \
+        libfl-dev \
+        zlib1g \
+        zlib1g-dev \
+        liblz4-1 \
+        liblz4-dev \
+        libgoogle-perftools-dev \
+        libjemalloc-dev \
+        numactl \
+        perl-doc
+
+RUN git clone --depth 1 --branch stable https://github.com/verilator/verilator.git /tmp/verilator && \
+    cd /tmp/verilator && \
+    unset VERILATOR_ROOT && \
+    autoconf && \
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/verilator
+
+USER xuemanjiu
+WORKDIR /home/xuemanjiu
+
+FROM verilator_provider AS systemc_provider
+
+USER root
+
+ENV SYSTEMC_HOME=/opt/systemc
+ENV SYSTEMC_CXXFLAGS="-I/opt/systemc/include -std=c++17"
+ENV SYSTEMC_LDFLAGS="-L/opt/systemc/lib -Wl,-rpath,/opt/systemc/lib -lsystemc -pthread"
+ENV LD_LIBRARY_PATH="/opt/systemc/lib"
+
+RUN apt-get update && \
+    apt-get install -y cmake
+
+RUN git clone --depth 1 --branch 3.0.2 https://github.com/accellera-official/systemc.git /tmp/systemc && \
+    cmake -S /tmp/systemc -B /tmp/systemc/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=${SYSTEMC_HOME} \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCMAKE_CXX_STANDARD=17 && \
+    cmake --build /tmp/systemc/build -j2 && \
+    cmake --install /tmp/systemc/build && \
+    cd / && \
+    rm -rf /tmp/systemc
+
+USER xuemanjiu
 WORKDIR /home/xuemanjiu
