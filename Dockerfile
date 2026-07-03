@@ -104,3 +104,28 @@ RUN git clone --depth 1 --branch 3.0.2 https://github.com/accellera-official/sys
 
 USER xuemanjiu
 WORKDIR /home/xuemanjiu
+
+FROM common_pkg_provider AS release
+USER root
+
+# 只 COPY 各 stage compile 出來的產物
+COPY --from=verilator_provider /usr/local/bin/verilator* /usr/local/bin/
+COPY --from=verilator_provider /usr/local/share/verilator /usr/local/share/verilator
+COPY --from=systemc_provider /opt/systemc /opt/systemc
+
+# runtime 需要的 library（verilator/systemc 執行時期依賴）
+RUN apt-get update && \
+    apt-get install -y \
+        libfl2 \
+        zlib1g \
+        liblz4-1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV SYSTEMC_HOME=/opt/systemc
+ENV LD_LIBRARY_PATH="/opt/systemc/lib"
+ENV SYSTEMC_CXXFLAGS="-I/opt/systemc/include -std=c++17"
+ENV SYSTEMC_LDFLAGS="-L/opt/systemc/lib -Wl,-rpath,/opt/systemc/lib -lsystemc -pthread"
+
+USER xuemanjiu
+WORKDIR /home/xuemanjiu
