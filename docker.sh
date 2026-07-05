@@ -12,9 +12,9 @@
 # 註: 本機 docker 跑在 WSL2 Linux engine，掛載 Windows 路徑 (C:/Users/...)
 #     會自動轉成 Linux 看得到的 /mnt/c/Users/... 格式。
 
-CONT_HOSTNAME="aoc2026"
-IMAGE_NAME="aoc2026-env"
-CONT_NAME="aoc2026-container"
+CONT_HOSTNAME="summer-training"
+IMAGE_NAME="summer-training-lab1"
+CONT_NAME="summer-training-container"
 USERNAME="xuemanjiu"
 MOUNTS=()
 
