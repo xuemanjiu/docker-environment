@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+#
+# eman - Environment MANager
+# 在 container 裡執行，用來驗證研究環境（C 編譯器 / Verilator）有沒有裝好。
+# 用法：./eman <command>
+#
+
+# tutorial 原始碼掛進來的位置（docker.sh 會掛到 /home/<user>/lab-0-tutorial）
+REPO="$HOME/lab-0-tutorial"
+
+# ------------------------------------------------------------------
+# help：印出使用說明
+# ------------------------------------------------------------------
+help() {
+    cat <<EOF
+eman 用法: ./eman <command>
+
+  c-compiler-version    印 C 編譯器 (gcc/g++) 與 GNU Make 版本
+  c-compiler-example    編譯並執行 C/C++ 範例
+  check-verilator       印 Verilator 版本
+  verilator-example     編譯並執行 Verilator 範例
+  change-verilator <V>  切換 Verilator 版本（沒裝就從 source 編，例如 5.026）
+  help                  顯示這個說明
+EOF
+}
+
+# ------------------------------------------------------------------
+# 1. 印 C 編譯器與 make 版本
+# ------------------------------------------------------------------
+c_compiler_version() {
+    echo "== C compiler =="
+    gcc --version | head -n1        # head -n1：只取第一行
+    g++ --version | head -n1
+    echo "== GNU Make =="
+    make --version | head -n1
+}
+
+# ------------------------------------------------------------------
+# 2. 編譯並執行 C/C++ 範例
+#    這些範例的 Makefile 裡 `all` 會 build 完直接 run，所以用 make all
+# ------------------------------------------------------------------
+c_compiler_example() {
+    for ex in arrays/multidim_array; do
+        echo ">>> C 範例: $ex"
+        make -C "$REPO/c_cpp/$ex" all      # -C：切到那個目錄再 make
+        make -C "$REPO/c_cpp/$ex" clean    # 清掉編譯產物
+    done
+}
+
+# ------------------------------------------------------------------
+# 3. 印 Verilator 版本（PATH 上找到的第一個）
+# ------------------------------------------------------------------
+check_verilator() {
+    verilator --version
+}
+
+# ------------------------------------------------------------------
+# 4. 編譯並執行 Verilator 範例
+#    Verilator 範例的 Makefile `all` 只 build，要用 `run` 才會 build+執行
+# ------------------------------------------------------------------
+verilator_example() {
+    for ex in counter; do
+        echo ">>> Verilator 範例: $ex"
+        make -C "$REPO/verilog/$ex" run
+        make -C "$REPO/verilog/$ex" clean
+    done
+}
+
+# ------------------------------------------------------------------
+# 5. 切換 Verilator 版本（沒裝就從 source 編譯安裝，再用 symlink 指過去）
+# ------------------------------------------------------------------
+change_verilator() {
+    version="$1"
+    if [ -z "$version" ]; then                 # -z：字串是空的嗎
+        echo "用法: eman change-verilator <VERSION>   例如 5.026"
+        return 1
+    fi
+
+    tag="v$version"                            # 5.026 -> v5.026
+    prefix="$HOME/.eman/verilator/$tag"        # 每個版本裝在各自資料夾，可並存
+
+    # 若這一版還沒裝（執行檔不存在），就從 source 編譯
+    if [ ! -x "$prefix/bin/verilator" ]; then  # ! -x：檔案不存在或不可執行
+        echo "Verilator $tag 還沒裝，開始從 source 編譯..."
+        tmp=$(mktemp -d)                       # 開一個暫存目錄來編
+        git clone --branch "$tag" https://github.com/verilator/verilator.git "$tmp" || return 1
+        cd "$tmp" || return 1
+        autoconf
+        ./configure --prefix="$prefix"
+        make -j"$(nproc)"                       # nproc：CPU 核心數，平行編譯
+        make install
+        cd - >/dev/null
+        rm -rf "$tmp"                          # 編完清掉暫存
+    fi
+
+    # 用 symlink 把預設的 verilator 指到選定的版本
+    mkdir -p "$HOME/.local/bin"
+    ln -sfn "$prefix/bin/verilator" "$HOME/.local/bin/verilator"
+    echo "已切換到 Verilator $tag"
+
+    # 自我驗證：確認新版 symlink 本身能跑、且確實是目標版本
+    if "$HOME/.local/bin/verilator" --version 2>/dev/null | grep -q "$version"; then
+        echo "✓ 新版可正常執行: $("$HOME/.local/bin/verilator" --version)"
+    else
+        echo "⚠ 切換後仍無法執行 Verilator $version，請確認安裝是否完整。"
+        return 1
+    fi
+
+    # 子程序改不了父 shell 的 PATH/hash，故依實際情況提示如何讓目前 shell 生效
+    if [ "$(command -v verilator 2>/dev/null)" = "$HOME/.local/bin/verilator" ]; then
+        echo "目前 PATH 已優先使用 ~/.local/bin。若同一個 shell 仍顯示舊版，執行: hash -r"
+    else
+        echo "請在你的 shell 執行以下指令讓它生效（或開一個新 shell）:"
+        echo '    export PATH="$HOME/.local/bin:$PATH"; hash -r'
+    fi
+}
+
+# ------------------------------------------------------------------
+# dispatch：看第一個參數 ($1) 決定呼叫哪個函式
+# ------------------------------------------------------------------
+case "$1" in
+    c-compiler-version) c_compiler_version ;;
+    c-compiler-example) c_compiler_example ;;
+    check-verilator)    check_verilator ;;
+    verilator-example)  verilator_example ;;
+    change-verilator)   change_verilator "$2" ;;   # $2 = 版本號
+    help|"")            help ;;
+    *)                  echo "未知指令: $1"; help ;;
+esac

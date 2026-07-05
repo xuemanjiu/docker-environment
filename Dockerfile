@@ -113,16 +113,28 @@ COPY --from=verilator_provider /usr/local/bin/verilator* /usr/local/bin/
 COPY --from=verilator_provider /usr/local/share/verilator /usr/local/share/verilator
 COPY --from=systemc_provider /opt/systemc /opt/systemc
 
-# runtime 需要的 library（verilator/systemc 執行時期依賴）
+# runtime library（verilator/systemc 執行時期依賴）
+# + verilator build toolchain：讓 `eman change-verilator` 能在 release
+#   container 內從 source 編譯並切換不同版本的 Verilator
 RUN apt-get update && \
     apt-get install -y \
         libfl2 \
         zlib1g \
-        liblz4-1 && \
+        liblz4-1 \
+        autoconf \
+        flex \
+        bison \
+        ccache \
+        help2man \
+        perl \
+        libfl-dev \
+        zlib1g-dev \
+        liblz4-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ENV SYSTEMC_HOME=/opt/systemc
+ENV PATH="/home/xuemanjiu/.local/bin:$PATH"
 ENV LD_LIBRARY_PATH="/opt/systemc/lib"
 ENV SYSTEMC_CXXFLAGS="-I/opt/systemc/include -std=c++17"
 ENV SYSTEMC_LDFLAGS="-L/opt/systemc/lib -Wl,-rpath,/opt/systemc/lib -lsystemc -pthread"
