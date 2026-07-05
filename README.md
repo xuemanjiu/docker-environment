@@ -1,8 +1,5 @@
-# AOC 2026 Lab 0 — Docker Environment
+# AOC 2026 Lab 1 — Docker Environment
 
-為 AOC 2026 課程打包的統一實驗環境。透過 Docker 建立一致、可重現的開發環境，
-內含 C/C++ 工具鏈、Verilator 與 SystemC，並提供 `docker.sh` 管理容器、
-`eman` 驗證環境。
 
 ## 需求
 
